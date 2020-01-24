@@ -36,9 +36,35 @@ var importCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
-		imported, err := places.FromSavedJSON(bs)
-		if err != nil {
-			log.Fatal(err)
+		ctx := context.Background()
+		apiKey := viper.GetString("mapsKey")
+		if apiKey == "" {
+			log.Fatal("mapsKey is required")
+		}
+
+		var imported []*places.Place
+		if format == "geojson" {
+			imported, err = places.FromSavedJSON(bs)
+			if err != nil {
+				log.Fatal(err)
+			}
+		} else if format == "csv" {
+			imported, err = places.FromSavedCSV(bs)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			err = places.AddPlaceDetailsForID(ctx, apiKey, imported)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+
+		tags, err := cmd.Flags().GetStringSlice("tags")
+		if err == nil {
+			for _, p := range imported {
+				p.Tags = tags
+			}
 		}
 
 		dir := "data/out/"
@@ -57,6 +83,13 @@ var importCmd = &cobra.Command{
 				if err != nil {
 					log.Fatal(err)
 				}
+			} else {
+				if err == nil {
+					// found one without issue
+					// add tags from imported p
+					found.Tags = append(found.Tags, p.Tags...)
+					db.Write(collection, n, found)
+				}
 			}
 		}
 
@@ -65,12 +98,7 @@ var importCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
-		apiKey := viper.GetString("mapsKey")
-		if apiKey == "" {
-			log.Fatal("mapsKey is required")
-		}
-
-		err = places.AddPlaceDetails(context.Background(), apiKey, ps)
+		err = places.AddPlaceDetails(ctx, apiKey, ps)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -122,6 +150,7 @@ func init() {
 	importCmd.MarkFlagRequired("file")
 
 	importCmd.Flags().String("mapsKey", "", "The API key to access the Places API")
+	importCmd.Flags().StringSliceP("tags", "t", []string{}, "tags to add to these places")
 
 	if err := viper.BindPFlags(importCmd.Flags()); err != nil {
 		log.Fatal(err)

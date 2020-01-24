@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/jcelliott/lumber v0.0.0-20160324203708-dd349441af25 // indirect
+	github.com/jszwec/csvutil v1.2.2
 	github.com/kennygrant/sanitize v1.2.4
 	github.com/kr/pretty v0.2.0
 	github.com/mitchellh/go-homedir v1.1.0

@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"crypto/md5"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 
 	"github.com/kasuboski/neptune/pkg/places"
 	"github.com/spf13/cobra"
@@ -13,6 +16,8 @@ import (
 	"github.com/kennygrant/sanitize"
 	"github.com/sdomino/scribble"
 )
+
+const collection = "places"
 
 var importCmd = &cobra.Command{
 	Use:   "import <geojson|csv> -f file",
@@ -31,31 +36,79 @@ var importCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
-		apiKey := viper.GetString("mapsKey")
-		if apiKey == "" {
-			log.Fatal("mapsKey is required")
-		}
-		// places, err := places.ImportFromSavedJSON(apiKey, bs)
-		places, err := places.FromSavedJSON(bs)
+		imported, err := places.FromSavedJSON(bs)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		// pretty.Println(places)
 		dir := "data/out/"
 		db, err := scribble.New(dir, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		for _, p := range places {
-			res := resourceName(p)
-			err := db.Write("places", res, p)
-			if err != nil {
-				log.Fatal(err)
+		// check if places already in db
+		// if not add it
+		for _, p := range imported {
+			found := &places.Place{}
+			n := resourceName(p)
+			if err := db.Read(collection, n, found); os.IsNotExist(err) {
+				err := db.Write(collection, n, p)
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
 		}
+
+		ps, err := readPlacesFromDB(db)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		apiKey := viper.GetString("mapsKey")
+		if apiKey == "" {
+			log.Fatal("mapsKey is required")
+		}
+
+		err = places.AddPlaceDetails(context.Background(), apiKey, ps)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = writePlacesToDB(db, ps)
+		if err != nil {
+			log.Fatal(err)
+		}
 	},
+}
+
+func writePlacesToDB(db *scribble.Driver, ps []*places.Place) error {
+	for _, p := range ps {
+		res := resourceName(p)
+		err := db.Write(collection, res, p)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func readPlacesFromDB(db *scribble.Driver) ([]*places.Place, error) {
+	records, err := db.ReadAll(collection)
+	if err != nil {
+		return nil, err
+	}
+
+	ps := []*places.Place{}
+	for _, r := range records {
+		p := &places.Place{}
+		if err := json.Unmarshal([]byte(r), p); err != nil {
+			return nil, err
+		}
+		ps = append(ps, p)
+	}
+
+	return ps, nil
 }
 
 func resourceName(p *places.Place) string {

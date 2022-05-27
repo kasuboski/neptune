@@ -3,6 +3,7 @@ package places
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"googlemaps.github.io/maps"
@@ -140,4 +141,46 @@ func getSearchQuery(p *Place) (string, error) {
 	}
 
 	return fmt.Sprintf("%s %s", name, addr), nil
+}
+
+func DistanceToPlaceFrom(ctx context.Context, c maps.Client, f string, p *Place) (int, error) {
+	req := maps.DirectionsRequest{Origin: f, Destination: p.FormattedAddress}
+	route, _, err := c.Directions(ctx, &req)
+	if err != nil {
+		return 0, err
+	}
+
+	distance := 0
+	if len(route) == 0 {
+		// If no route can be found just assume 0 distance
+		return distance, nil
+	}
+	for _, leg := range route[0].Legs {
+		distance += leg.Meters
+	}
+
+	return distance, nil
+}
+
+// DistinctCategories returns a sorted list of distinct categories
+func DistinctCategories(ps []*Place) (cats []string) {
+	for _, p := range ps {
+		cat := p.Categories[0]
+		if !contains(cats, cat) {
+			cats = append(cats, cat)
+		}
+	}
+
+	sort.Strings(cats)
+	return cats
+}
+
+// contains checks if s contains str
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+	return false
 }

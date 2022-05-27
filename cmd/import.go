@@ -2,9 +2,6 @@ package cmd
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -13,10 +10,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/kennygrant/sanitize"
 	"github.com/sdomino/scribble"
 )
 
+// TODO: Read this from config
 const collection = "places"
 
 var importCmd = &cobra.Command{
@@ -77,7 +74,7 @@ var importCmd = &cobra.Command{
 		// if not add it
 		for _, p := range imported {
 			found := &places.Place{}
-			n := resourceName(p)
+			n := places.ResourceName(p)
 			if err := db.Read(collection, n, found); os.IsNotExist(err) {
 				err := db.Write(collection, n, p)
 				if err != nil {
@@ -93,7 +90,7 @@ var importCmd = &cobra.Command{
 			}
 		}
 
-		ps, err := readPlacesFromDB(db)
+		ps, err := places.ReadPlacesFromDB(db)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -103,46 +100,11 @@ var importCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
-		err = writePlacesToDB(db, ps)
+		err = places.WritePlacesToDB(db, ps)
 		if err != nil {
 			log.Fatal(err)
 		}
 	},
-}
-
-func writePlacesToDB(db *scribble.Driver, ps []*places.Place) error {
-	for _, p := range ps {
-		res := resourceName(p)
-		err := db.Write(collection, res, p)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func readPlacesFromDB(db *scribble.Driver) ([]*places.Place, error) {
-	records, err := db.ReadAll(collection)
-	if err != nil {
-		return nil, err
-	}
-
-	ps := []*places.Place{}
-	for _, r := range records {
-		p := &places.Place{}
-		if err := json.Unmarshal([]byte(r), p); err != nil {
-			return nil, err
-		}
-		ps = append(ps, p)
-	}
-
-	return ps, nil
-}
-
-func resourceName(p *places.Place) string {
-	res := sanitize.BaseName(fmt.Sprintf("%s_%s", p.Name, p.FormattedAddress))
-	ret := md5.Sum([]byte(res))
-	return fmt.Sprintf("%x", ret)
 }
 
 func init() {

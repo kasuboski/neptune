@@ -12,6 +12,8 @@ import (
 var (
 	// Used for flags.
 	cfgFile string
+	dirPath string
+	mapsKey string
 
 	rootCmd = &cobra.Command{
 		Use:   "neptune",
@@ -29,6 +31,8 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.neptune.yaml)")
+	rootCmd.PersistentFlags().StringVar(&dirPath, "dir", "data/out/", "directory for storing places (default is data/out/)")
+	rootCmd.PersistentFlags().StringVar(&mapsKey, "mapsKey", "", "The API key to access the Places API")
 
 }
 
